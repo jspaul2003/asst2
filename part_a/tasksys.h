@@ -54,11 +54,10 @@ class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
     private:
         void spinning();
         std::mutex* lock;
-        std::queue<int>* task_id_queue;
+        int job_number;
         IRunnable* runnable;
         int num_total_tasks;
         bool kill_flag;
-        //std::mutex* job_lock;
         std::condition_variable* job_status;
         int jobs_complete;
     public:

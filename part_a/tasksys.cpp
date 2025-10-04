@@ -120,9 +120,7 @@ const char* TaskSystemParallelThreadPoolSpinning::name() {
 TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int num_threads): ITaskSystem(num_threads) {
     this->num_threads = num_threads;
     this->lock = new std::mutex();
-    //this->job_lock = new std::mutex();
     this->job_status = new std::condition_variable();
-    this->task_id_queue = new std::queue<int>();
     this->kill_flag = false;
     thread_pool = new std::thread[num_threads];
     for (int i = 0; i < num_threads; i++) {
@@ -133,25 +131,23 @@ TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int n
 void TaskSystemParallelThreadPoolSpinning::spinning() {
     int task_id;
     while (true) {
-        lock->lock();
         if (kill_flag) {
-            lock->unlock();
             break;
         }
-        if (task_id_queue->empty()) {
+        lock->lock();
+        if (job_number >= num_total_tasks) {
             lock->unlock();
             continue;
         }
         else {
-            task_id = task_id_queue->front();
-            task_id_queue->pop();
+            task_id = job_number;
+            job_number++;
         }
         lock->unlock();
         runnable->runTask(task_id, num_total_tasks);
         lock->lock();
         jobs_complete++;
         if (jobs_complete == num_total_tasks) {
-            //std::cerr << "notify all" << std::endl;
             job_status->notify_all();
         }
         lock->unlock();        
@@ -159,18 +155,13 @@ void TaskSystemParallelThreadPoolSpinning::spinning() {
 }
 
 TaskSystemParallelThreadPoolSpinning::~TaskSystemParallelThreadPoolSpinning() {
-    //std::cerr << "destroy" << std::endl;
     kill_flag = true;
     for (int i = 0; i < num_threads; i++) {
         thread_pool[i].join();
     }
-    //std::cerr << "sigma2" << std::endl;
     delete lock;
-    delete task_id_queue;
     delete[] thread_pool;
-    //delete job_lock;
     delete job_status;
-   //std::cerr << "sigma" << std::endl;
 }
 
 void TaskSystemParallelThreadPoolSpinning::run(IRunnable* runnable, int num_total_tasks) {
@@ -178,16 +169,12 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable* runnable, int num_tota
     this->runnable = runnable;
     this->jobs_complete = 0;
     this->num_total_tasks = num_total_tasks;
-    for (int i = 0; i < num_total_tasks; i++) {
-        task_id_queue->push(i);
-    }
+    this->job_number = 0;
     this->lock->unlock();
     
-
     // wait for all tasks to finish 
     std::unique_lock<std::mutex> job_lock_unique(*this->lock);
     this->job_status->wait(job_lock_unique, [&]{ return jobs_complete == num_total_tasks; });
-    //std::cerr << "wake up" << std::endl;
 }
 
 TaskID TaskSystemParallelThreadPoolSpinning::runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
