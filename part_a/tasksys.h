@@ -4,6 +4,8 @@
 #include "itasksys.h"
 #include <thread>
 #include <mutex>
+#include <queue>
+#include <condition_variable>
 
 /*
  * TaskSystemSerial: This class is the student's implementation of a
@@ -49,7 +51,19 @@ class TaskSystemParallelSpawn: public ITaskSystem {
  * documentation of the ITaskSystem interface.
  */
 class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
+    private:
+        void spinning();
+        std::mutex* lock;
+        std::queue<int>* task_id_queue;
+        IRunnable* runnable;
+        int num_total_tasks;
+        bool kill_flag;
+        //std::mutex* job_lock;
+        std::condition_variable* job_status;
+        int jobs_complete;
     public:
+        std::thread* thread_pool;
+        int num_threads;
         TaskSystemParallelThreadPoolSpinning(int num_threads);
         ~TaskSystemParallelThreadPoolSpinning();
         const char* name();
