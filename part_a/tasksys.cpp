@@ -1,4 +1,7 @@
 #include "tasksys.h"
+#include <thread>
+#include <mutex>
+#include <stdlib.h>
 
 
 IRunnable::~IRunnable() {}
@@ -55,22 +58,40 @@ TaskSystemParallelSpawn::TaskSystemParallelSpawn(int num_threads): ITaskSystem(n
     // Implementations are free to add new class member variables
     // (requiring changes to tasksys.h).
     //
+    this-> num_threads = num_threads;
+    thread_pool = new std::thread[num_threads];
 }
 
 TaskSystemParallelSpawn::~TaskSystemParallelSpawn() {}
 
+void TaskSystemParallelSpawn::run_helper(IRunnable* runnable, int num_total_tasks, std::mutex* iteration_lock, int* job) {
+    // loop thru all tasks, assign the task to thread
+    int my_job;
+    while (*job < num_total_tasks){
+        iteration_lock->lock();
+        my_job = *job;
+        (*job)++;
+        iteration_lock->unlock();
+        runnable->runTask(my_job, num_total_tasks);
+    }
+}
+
 void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
-
-
     //
     // TODO: CS149 students will modify the implementation of this
     // method in Part A.  The implementation provided below runs all
     // tasks sequentially on the calling thread.
     //
-
-    for (int i = 0; i < num_total_tasks; i++) {
-        runnable->runTask(i, num_total_tasks);
+    std::mutex* iteration_lock = new std::mutex(); // lock system
+    int* job = new int(0); // which task are we on? or lowest unassigned task index
+    for (int i = 0; i < num_threads; i++) {
+        thread_pool[i] = std::thread(&TaskSystemParallelSpawn::run_helper, this, runnable, num_total_tasks, iteration_lock, job);
     }
+    for (int i = 0; i < num_threads; i++) {
+        thread_pool[i].join();
+    }
+    delete iteration_lock;
+    delete job;
 }
 
 TaskID TaskSystemParallelSpawn::runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
