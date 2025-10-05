@@ -62,13 +62,19 @@ TaskSystemParallelSpawn::~TaskSystemParallelSpawn() {}
 
 void TaskSystemParallelSpawn::run_helper(IRunnable* runnable, int num_total_tasks, std::mutex* iteration_lock, int* job) {
     // loop thru all tasks, assign the task to thread
-    int my_job = *job;
-    while (my_job < num_total_tasks){
+    int job_number;
+    while(true) {
         iteration_lock->lock();
-        my_job = *job;
-        (*job)++;
+        if (*job >= num_total_tasks) {
+            iteration_lock->unlock();
+            break;
+        }
+        else {
+            job_number = *job;
+            (*job)++;
+        }
         iteration_lock->unlock();
-        runnable->runTask(my_job, num_total_tasks);
+        runnable->runTask(job_number, num_total_tasks);
     }
 }
 
@@ -194,7 +200,9 @@ const char* TaskSystemParallelThreadPoolSleeping::name() {
 TaskSystemParallelThreadPoolSleeping::TaskSystemParallelThreadPoolSleeping(int num_threads): ITaskSystem(num_threads) {
     this->num_threads = num_threads;
     this->lock = new std::mutex();
+    //this->task_lock = new std::mutex();
     this->job_status = new std::condition_variable();
+    this->task_status = new std::condition_variable();
     this->kill_flag = false;
     thread_pool = new std::thread[num_threads];
     this->job_number = 0;
@@ -209,18 +217,26 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
     int task_id;
     while (true) {
         if (kill_flag) {
+            //std::cerr << "thread " << std::this_thread::get_id() << " killed!" << std::endl;
             break;
         }
         lock->lock();
         if (job_number >= num_total_tasks) {
             lock->unlock();
+            // put thread to sleep
+            std::unique_lock<std::mutex> task_lock_unique(*this->lock);
+            //std::cerr << "thread " << std::this_thread::get_id() << " PUT TO SLEEP!" << std::endl;
+            this->task_status->wait(task_lock_unique, [&]{ return job_number < num_total_tasks; });
+            //std::cerr << "thread " << std::this_thread::get_id() << " woke up!" << std::endl;
             continue;
         }
         else {
+            //std::cerr << "SKIBIDI TOIELT" << std::endl;
             task_id = job_number;
             job_number++;
         }
         lock->unlock();
+        //std::cerr << "SIGMA" << std::endl;
         runnable->runTask(task_id, num_total_tasks);
         lock->lock();
         jobs_complete++;
@@ -232,11 +248,20 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
 }
 
 TaskSystemParallelThreadPoolSleeping::~TaskSystemParallelThreadPoolSleeping() {
+    //std::cerr << "DESTROY" << std::endl;
     kill_flag = true;
+
+    // one last job for each thread: to die
+    this->job_number = 0;
+    this->num_total_tasks = 1;
+    // wake up the threads so they can die
+    this->task_status->notify_all();
     for (int i = 0; i < num_threads; i++) {
         thread_pool[i].join();
     }
     delete lock;
+    //delete task_lock;
+    delete task_status;
     delete[] thread_pool;
     delete job_status;
 }
@@ -247,11 +272,13 @@ void TaskSystemParallelThreadPoolSleeping::run(IRunnable* runnable, int num_tota
     this->jobs_complete = 0;
     this->num_total_tasks = num_total_tasks;
     this->job_number = 0;
+    this->task_status->notify_all();
     this->lock->unlock();
     
     // wait for all tasks to finish 
     std::unique_lock<std::mutex> job_lock_unique(*this->lock);
     this->job_status->wait(job_lock_unique, [&]{ return jobs_complete == num_total_tasks; });
+    //std::cerr << "DONE" << std::endl;
 }
 
 TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
