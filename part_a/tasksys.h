@@ -82,7 +82,6 @@ class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
     private:
         void spinning();
         std::mutex* lock;
-        //std::mutex* task_lock;
         int job_number;
         IRunnable* runnable;
         int num_total_tasks;
