@@ -1403,3 +1403,77 @@ TestResults strictGraphDepsMedium(ITaskSystem* t) {
 TestResults strictGraphDepsLarge(ITaskSystem* t) {
     return strictGraphDepsTestBase(t,1000,20000,0);
 }
+
+
+/* Additional tests added by XG */
+
+class MatMulTask : public IRunnable
+{
+public:
+    int idx_;  // number of matrices to multply together
+    int *output_;  // top right element of matrix to store
+    MatMulTask(int idx, int *output) : idx_(idx), output_(output) {}
+    ~MatMulTask() {}
+
+    // multiply n 2x2 matrices together. All of the form {{2,2}, {0,2}}
+    int MatMulFn(int n)
+    {
+        int a=1, b=0, c=0, d=1;
+        for (int i=0; i<n; i++)
+        {
+            int na = a*2 + b*0;
+            int nb = a*2 + b*2;
+            int nc = c*2 + d*0;
+            int nd = c*2 + d*2;
+            a = na; b = nb; c = nc; d = nd;
+        }
+        return b;
+    }
+
+    void runTask(int task_id, int num_total_tasks)
+    {
+        output_[task_id] = MatMulFn(idx_);
+    }
+};
+
+TestResults matMulTest(ITaskSystem* t) {
+    int num_tasks = 256;
+    int num_bulk_task_launches = 30;
+    int matmul_index = 5;  // 5 matmuls
+
+    int *task_output = new int[num_tasks];
+    for (int i = 0; i < num_tasks; i++)
+    {
+        task_output[i] = 0;
+    }
+
+    std::vector<MatMulTask *> matmul_tasks(num_bulk_task_launches);
+    for (int i = 0; i < num_bulk_task_launches; i++)
+    {
+        matmul_tasks[i] = new MatMulTask(matmul_index, task_output);
+    }
+
+    double start_time = CycleTimer::currentSeconds();
+    for (int i = 0; i < num_bulk_task_launches; i++) {
+        t->run(matmul_tasks[i], num_tasks);
+    }
+    double end_time = CycleTimer::currentSeconds();
+
+    TestResults result;
+    result.passed = true;
+    for (int i = 0; i < num_tasks; i++) {
+        if (task_output[i] != 160) {
+            printf("%d\n", task_output[i]);
+            result.passed = false;
+            break;
+        }
+    }
+    result.time = end_time - start_time;
+
+    delete [] task_output;
+    for (int i = 0; i < num_bulk_task_launches; i++) {
+        delete matmul_tasks[i];
+    }
+
+    return result;
+}

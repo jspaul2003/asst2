@@ -49,7 +49,7 @@ ITaskSystem *selectTaskSystemRefImpl(int num_threads, TaskSystemType type) {
 
 int main(int argc, char** argv)
 {
-    const int n_tests = 31;
+    const int n_tests = 32;  // originally 31, increase by adding more XG tests
     int num_threads = DEFAULT_NUM_THREADS;
     int num_timing_iterations = DEFAULT_NUM_TIMING_ITERATIONS;
 
@@ -83,6 +83,8 @@ int main(int argc, char** argv)
         strictGraphDepsSmall,
         strictGraphDepsMedium,
         strictGraphDepsLarge,
+        // additional XG tests
+        matMulTest,
     };
 
     std::string test_names[n_tests] = {
@@ -115,6 +117,8 @@ int main(int argc, char** argv)
         "strict_graph_deps_small_async",
         "strict_graph_deps_med_async",
         "strict_graph_deps_large_async",
+        // additional XG tests
+        "matmul_test",
     };
  
     // Parse commandline options
