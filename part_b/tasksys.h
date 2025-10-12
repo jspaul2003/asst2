@@ -93,12 +93,14 @@ class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
         //std::set<std::tuple<IRunnable*, TaskID, int, const std::vector<TaskID>&>> waiting_tasks;
 
         std::atomic<TaskID> next_task_id;
+        int threads_at_work;
 
         std::mutex* lock;
         bool kill_flag;
 
         std::condition_variable* job_status;
         std::condition_variable* task_status;
+
     public:
         std::thread* thread_pool;
         int num_threads;

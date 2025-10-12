@@ -209,6 +209,7 @@ TaskSystemParallelThreadPoolSleeping::TaskSystemParallelThreadPoolSleeping(int n
     this->num_jobs_left = std::unordered_map<TaskID, int>();
     this->waiting_tasks = std::set<std::tuple<IRunnable*, int, int, std::vector<TaskID>>>();
     this->next_task_id = 0;
+    this->threads_at_work = 0;
 
     for (int i = 0; i < num_threads; i++) {
         thread_pool[i] = std::thread(&TaskSystemParallelThreadPoolSleeping::spinning, this);
@@ -242,6 +243,7 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
             i = std::get<2>(front_ready_queue);
             num_total_tasks = std::get<3>(front_ready_queue);
             ready_queue.pop();
+            threads_at_work++;
             if (DEBUG) {
                 std::cerr << "\n----------------TASK START----------------\n" << std::endl;
                 std::cerr << "task_id: " << task_id << std::endl;
@@ -255,6 +257,7 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
 
         lock->lock();
         num_jobs_left[task_id]--;
+        threads_at_work--;
         
         // if all tasks in this task_id are complete, we need to check if any new 
         // tasks in the waiting_tasks set are ready to be run
@@ -270,7 +273,7 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
                 std::cerr << "---------------------------------------------\n" << std::endl;
             }
             // check if all jobs are
-            if (waiting_tasks.empty() && ready_queue.empty()) {
+            if (waiting_tasks.empty() && ready_queue.empty() && threads_at_work == 0) {
                 job_status->notify_one();
             }
 
@@ -402,6 +405,6 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnabl
 
 void TaskSystemParallelThreadPoolSleeping::sync() {
     std::unique_lock<std::mutex> job_lock_unique(*this->lock);
-    this->job_status->wait(job_lock_unique, [&]{ return ready_queue.empty() && waiting_tasks.empty(); });
+    this->job_status->wait(job_lock_unique, [&]{ return ready_queue.empty() && waiting_tasks.empty() && threads_at_work == 0; });
     return;
 }
