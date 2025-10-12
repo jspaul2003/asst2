@@ -1,6 +1,6 @@
 #include "tasksys.h"
 #include <iostream>
-#include <stdlib.h>
+
 
 
 IRunnable::~IRunnable() {}
@@ -204,9 +204,9 @@ TaskSystemParallelThreadPoolSleeping::TaskSystemParallelThreadPoolSleeping(int n
     this->kill_flag = false;
     thread_pool = new std::thread[num_threads];
 
-    this->ready_queue = std::queue<std::tuple<IRunnable*, TaskID, int, int>>();
+    this->ready_queue = std::queue<TaskBatch>();
     this->num_jobs_left = std::unordered_map<TaskID, int>();
-    this->waiting_tasks = std::set<std::tuple<IRunnable*, int, int, std::vector<TaskID>>>();
+    this->waiting_tasks = std::vector<WaitingTask>();
     this->next_task_id = 0;
     this->threads_at_work = 0;
 
@@ -221,96 +221,81 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
     TaskID task_id;
     int num_total_tasks;
     int i;
-    int BATCH_SIZE;
-    std::queue<std::tuple<IRunnable*, TaskID, int, int>> my_task_queue;
-    std::set<TaskID> my_task_ids;
-    std::unordered_map<TaskID, int> my_num_jobs_to_do;
     
     while (true) {
         std::unique_lock<std::mutex> task_lock_unique(*this->lock);
         this->task_status->wait(task_lock_unique, [&]{ return !ready_queue.empty() || kill_flag; });
         //std::cerr << "BRUH ready_queue.size(): " << ready_queue.size() << std::endl;
-        // we will use a dynamic batch size to even out work 
-        BATCH_SIZE = std::max(1, ((int)(ready_queue.size()))/num_threads/4 ); 
         
         if (kill_flag) {
             break;
         }
-
-        my_task_queue = std::queue<std::tuple<IRunnable*, TaskID, int, int>>();
-        my_task_ids = std::set<TaskID>();
-        my_num_jobs_to_do = std::unordered_map<TaskID, int>();
         
-        for (int j = 0; j < BATCH_SIZE; j++) {
-            auto& front_ready_queue = ready_queue.front();
-            my_task_queue.push(front_ready_queue);
-            runnable = std::get<0>(front_ready_queue);
-            task_id = std::get<1>(front_ready_queue);
-            i = std::get<2>(front_ready_queue);
-            num_total_tasks = std::get<3>(front_ready_queue);
-            ready_queue.pop();
-            my_num_jobs_to_do[task_id]++;
-        }
-        threads_at_work += BATCH_SIZE;
+        auto& front_ready_queue = ready_queue.front();
+        runnable = front_ready_queue.runnable;
+        task_id = front_ready_queue.task_id;
+        i = front_ready_queue.i;
+        num_total_tasks = front_ready_queue.num_total_tasks;
+        int to_process = front_ready_queue.batch_size;
+        threads_at_work++;
+        ready_queue.pop();
         task_lock_unique.unlock();
 
-        for (int j = 0; j < BATCH_SIZE; j++) {
-            auto& front_my_task_queue = my_task_queue.front();
-            runnable = std::get<0>(front_my_task_queue);
-            task_id = std::get<1>(front_my_task_queue);
-            i = std::get<2>(front_my_task_queue);
-            num_total_tasks = std::get<3>(front_my_task_queue);
-            my_task_queue.pop();
-            runnable->runTask(i, num_total_tasks);
-            my_task_ids.insert(task_id);
+        for (int j = i; j < std::min(i + to_process, num_total_tasks); j++) {
+            runnable->runTask(j, num_total_tasks);
         }
 
-        lock->lock();
-        threads_at_work -= BATCH_SIZE;
+        task_lock_unique.lock();
+        num_jobs_left[task_id]--;
+        threads_at_work--;
+        
+        // if all tasks in this task_id are complete, we need to check if any new 
+        // tasks in the waiting_tasks set are ready to be run
 
-        for (TaskID task_id : my_task_ids) {
-            num_jobs_left[task_id]-=my_num_jobs_to_do[task_id];
-            
-            // if all tasks in this task_id are complete, we need to check if any new 
-            // tasks in the waiting_tasks set are ready to be run
+        // also check if all jobs are done
+        if (num_jobs_left[task_id] == 0) {  
+            // check if all jobs are done
+            if (waiting_tasks.empty() && ready_queue.empty() && threads_at_work == 0) {
+                job_status->notify_one();
+            }
 
-            // also check if all jobs are done
-            if (num_jobs_left[task_id] == 0) {  
-                // check if all jobs are
-                if (waiting_tasks.empty() && ready_queue.empty() && threads_at_work == 0) {
-                    job_status->notify_one();
-                }
+            // check if any new tasks in the waiting_tasks set are ready to be run
+            for (auto iter = waiting_tasks.begin(); iter != waiting_tasks.end();) {
 
-                // check if any new tasks in the waiting_tasks set are ready to be run
-                for (auto iter = waiting_tasks.begin(); iter != waiting_tasks.end();) {
+                auto& front_waiting_tasks = *iter;
+                IRunnable* wait_runnable = front_waiting_tasks.runnable;
+                TaskID wait_task_id = front_waiting_tasks.task_id;
+                int wait_num_total_tasks = front_waiting_tasks.num_total_tasks;
+                const std::vector<TaskID>& wait_deps = front_waiting_tasks.deps;
 
-                    auto& front_waiting_tasks = *iter;
-                    IRunnable* wait_runnable = std::get<0>(front_waiting_tasks);
-                    TaskID wait_task_id = std::get<1>(front_waiting_tasks);
-                    int wait_num_total_tasks = std::get<2>(front_waiting_tasks);
-                    const std::vector<TaskID>& wait_deps = std::get<3>(front_waiting_tasks);
-
-                    bool deps_met = true;
-                    for (size_t j = 0; j < wait_deps.size(); j++) {
-                        if (num_jobs_left[wait_deps[j]] > 0) {
-                            deps_met = false;
-                            break;
-                        }
+                bool deps_met = true;
+                for (size_t j = 0; j < wait_deps.size(); j++) {
+                    if (num_jobs_left[wait_deps[j]] > 0) {
+                        deps_met = false;
+                        break;
                     }
-                    if (deps_met) {
-                        for (int j = 0; j < wait_num_total_tasks; j++) {
-                            ready_queue.push(std::make_tuple(wait_runnable, wait_task_id, j, wait_num_total_tasks));
-                        }
-                        iter = waiting_tasks.erase(iter);
+                }
+                if (deps_met) {
+                    bool was_empty = ready_queue.empty();
+                    int batch_size = std::max(1, wait_num_total_tasks/num_threads);
+                    int num_batches = 0;
+                    for (int j = 0; j < wait_num_total_tasks; j+=batch_size) {
+                        TaskBatch task_batch = {wait_runnable, wait_task_id, j, wait_num_total_tasks, batch_size};
+                        ready_queue.push(task_batch);
+                        num_batches++;
+                    }
+                    num_jobs_left[wait_task_id] = num_batches;
+                    iter = waiting_tasks.erase(iter);
+                    if (was_empty) {
                         task_status->notify_all();
                     }
-                    else {
-                        iter++;
-                    }
+                }
+                else {
+                    iter++;
                 }
             }
         }
-        lock->unlock();        
+        task_lock_unique.unlock();        
     }
 }
 
@@ -339,7 +324,6 @@ void TaskSystemParallelThreadPoolSleeping::run(IRunnable* runnable, int num_tota
 
 TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
                                                     const std::vector<TaskID>& deps) {
-    
     TaskID task_id = next_task_id; 
     next_task_id++;
 
@@ -354,19 +338,28 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnabl
         }
     }
 
-    // mark this task as not complete
-    num_jobs_left[task_id] = num_total_tasks;
+    int batch_size = std::max(1, num_total_tasks/num_threads);
     if (deps_met){
-        // add to ready queue
-        for (int i = 0; i < num_total_tasks; i++) { 
-            ready_queue.push(std::make_tuple(runnable, task_id, i, num_total_tasks));
+        bool was_empty = ready_queue.empty();
+        // add to ready queue with built in batching 
+        int num_batches = 0;
+        for (int i = 0; i < num_total_tasks; i+=batch_size) { 
+            TaskBatch task_batch = {runnable, task_id, i, num_total_tasks, batch_size};
+            ready_queue.push(task_batch);
+            num_batches++;
         }
+        // mark this task as not complete
+        num_jobs_left[task_id] = num_batches;
         // notify all threads
-        task_status->notify_all();
+        if (was_empty) {
+            task_status->notify_all();
+        }
     }
     else {
         // add to waiting tasks 
-        waiting_tasks.emplace(runnable, task_id, num_total_tasks, deps);
+        num_jobs_left[task_id] = 1; // not zero, the task is not done!
+        WaitingTask waiting_task = {runnable, task_id, num_total_tasks, deps};
+        waiting_tasks.push_back(waiting_task);
     }
     lock->unlock();
     

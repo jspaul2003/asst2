@@ -83,17 +83,30 @@ class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
  * a thread pool. See definition of ITaskSystem in
  * itasksys.h for documentation of the ITaskSystem interface.
  */
+struct TaskBatch {
+    IRunnable* runnable;
+    TaskID task_id;
+    int i;
+    int num_total_tasks;
+    int batch_size;
+};
+struct WaitingTask {
+    IRunnable* runnable;
+    TaskID task_id;
+    int num_total_tasks;
+    std::vector<TaskID> deps;
+};
+
 class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
     private:
         void spinning();
-        std::queue<std::tuple<IRunnable*, TaskID, int, int>> ready_queue;
+        std::queue<TaskBatch> ready_queue;
         std::unordered_map<TaskID, int> num_jobs_left;
-        using Waiting = std::tuple<IRunnable*, TaskID, int, std::vector<TaskID>>;
-        std::set<Waiting> waiting_tasks;
-        //std::set<std::tuple<IRunnable*, TaskID, int, const std::vector<TaskID>&>> waiting_tasks;
+        std::vector<WaitingTask> waiting_tasks;
 
         std::atomic<TaskID> next_task_id;
         int threads_at_work;
+        
 
         std::mutex* lock;
         bool kill_flag;
