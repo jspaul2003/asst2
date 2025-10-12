@@ -1,0 +1,5 @@
+===================================================================================
+Test name: ping_pong_equal_async
+===================================================================================
+0: 0 expected=6400
+ERROR: Results did not pass correctness check! (iter=0, ref_impl=Parallel + Thread Pool + Sleep)

@@ -2,13 +2,22 @@
 #define _TASKSYS_H
 
 #include "itasksys.h"
+#include <thread>
+#include <mutex>
+#include <queue>
+#include <condition_variable>
+#include <atomic>
+#include <tuple>
+#include <set>
+#include <unordered_map>
+
 
 /*
  * TaskSystemSerial: This class is the student's implementation of a
  * serial task execution engine.  See definition of ITaskSystem in
  * itasksys.h for documentation of the ITaskSystem interface.
  */
-class TaskSystemSerial: public ITaskSystem {
+ class TaskSystemSerial: public ITaskSystem {
     public:
         TaskSystemSerial(int num_threads);
         ~TaskSystemSerial();
@@ -26,7 +35,11 @@ class TaskSystemSerial: public ITaskSystem {
  * of the ITaskSystem interface.
  */
 class TaskSystemParallelSpawn: public ITaskSystem {
+    private:
+        void run_helper(IRunnable* runnable, int num_total_tasks, std::mutex* iteration_lock, int* job);
     public:
+        std::thread* thread_pool;
+        int num_threads;
         TaskSystemParallelSpawn(int num_threads);
         ~TaskSystemParallelSpawn();
         const char* name();
@@ -43,7 +56,18 @@ class TaskSystemParallelSpawn: public ITaskSystem {
  * documentation of the ITaskSystem interface.
  */
 class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
+    private:
+        void spinning();
+        std::mutex* lock;
+        int job_number;
+        IRunnable* runnable;
+        int num_total_tasks;
+        bool kill_flag;
+        std::condition_variable* job_status;
+        int jobs_complete;
     public:
+        std::thread* thread_pool;
+        int num_threads;
         TaskSystemParallelThreadPoolSpinning(int num_threads);
         ~TaskSystemParallelThreadPoolSpinning();
         const char* name();
@@ -60,7 +84,22 @@ class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
  * itasksys.h for documentation of the ITaskSystem interface.
  */
 class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
+    private:
+        void spinning();
+        std::queue<std::tuple<IRunnable*, TaskID, int, int>> ready_queue;
+        std::unordered_map<TaskID, int> num_jobs_left;
+        std::set<std::tuple<IRunnable*, TaskID, int, const std::vector<TaskID>&>> waiting_tasks;
+
+        std::atomic<TaskID> next_task_id;
+
+        std::mutex* lock;
+        bool kill_flag;
+
+        std::condition_variable* job_status;
+        std::condition_variable* task_status;
     public:
+        std::thread* thread_pool;
+        int num_threads;
         TaskSystemParallelThreadPoolSleeping(int num_threads);
         ~TaskSystemParallelThreadPoolSleeping();
         const char* name();

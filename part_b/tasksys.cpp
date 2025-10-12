@@ -1,4 +1,5 @@
 #include "tasksys.h"
+#include <iostream>
 
 
 IRunnable::~IRunnable() {}
@@ -12,7 +13,7 @@ ITaskSystem::~ITaskSystem() {}
  * ================================================================
  */
 
-const char* TaskSystemSerial::name() {
+ const char* TaskSystemSerial::name() {
     return "Serial";
 }
 
@@ -29,14 +30,12 @@ void TaskSystemSerial::run(IRunnable* runnable, int num_total_tasks) {
 
 TaskID TaskSystemSerial::runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
                                           const std::vector<TaskID>& deps) {
-    for (int i = 0; i < num_total_tasks; i++) {
-        runnable->runTask(i, num_total_tasks);
-    }
-
+    // You do not need to implement this method.
     return 0;
 }
 
 void TaskSystemSerial::sync() {
+    // You do not need to implement this method.
     return;
 }
 
@@ -51,30 +50,53 @@ const char* TaskSystemParallelSpawn::name() {
 }
 
 TaskSystemParallelSpawn::TaskSystemParallelSpawn(int num_threads): ITaskSystem(num_threads) {
-    // NOTE: CS149 students are not expected to implement TaskSystemParallelSpawn in Part B.
+    this->num_threads = num_threads;
+    thread_pool = new std::thread[num_threads];
 }
 
-TaskSystemParallelSpawn::~TaskSystemParallelSpawn() {}
+TaskSystemParallelSpawn::~TaskSystemParallelSpawn() {
+    delete[] thread_pool;
+}
+
+void TaskSystemParallelSpawn::run_helper(IRunnable* runnable, int num_total_tasks, std::mutex* iteration_lock, int* job) {
+    // loop thru all tasks, assign the task to thread
+    int job_number;
+    while(true) {
+        iteration_lock->lock();
+        if (*job >= num_total_tasks) {
+            iteration_lock->unlock();
+            break;
+        }
+        else {
+            job_number = *job;
+            (*job)++;
+        }
+        iteration_lock->unlock();
+        runnable->runTask(job_number, num_total_tasks);
+    }
+}
 
 void TaskSystemParallelSpawn::run(IRunnable* runnable, int num_total_tasks) {
-    // NOTE: CS149 students are not expected to implement TaskSystemParallelSpawn in Part B.
-    for (int i = 0; i < num_total_tasks; i++) {
-        runnable->runTask(i, num_total_tasks);
+    std::mutex* iteration_lock = new std::mutex(); // lock system
+    int* job = new int(0); // which task are we on? or lowest unassigned task index
+    for (int i = 0; i < num_threads; i++) {
+        thread_pool[i] = std::thread(&TaskSystemParallelSpawn::run_helper, this, runnable, num_total_tasks, iteration_lock, job);
     }
+    for (int i = 0; i < num_threads; i++) {
+        thread_pool[i].join();
+    }
+    delete iteration_lock;
+    delete job;
 }
 
 TaskID TaskSystemParallelSpawn::runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
                                                  const std::vector<TaskID>& deps) {
-    // NOTE: CS149 students are not expected to implement TaskSystemParallelSpawn in Part B.
-    for (int i = 0; i < num_total_tasks; i++) {
-        runnable->runTask(i, num_total_tasks);
-    }
-
+    // You do not need to implement this method.
     return 0;
 }
 
 void TaskSystemParallelSpawn::sync() {
-    // NOTE: CS149 students are not expected to implement TaskSystemParallelSpawn in Part B.
+    // You do not need to implement this method.
     return;
 }
 
@@ -89,30 +111,77 @@ const char* TaskSystemParallelThreadPoolSpinning::name() {
 }
 
 TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int num_threads): ITaskSystem(num_threads) {
-    // NOTE: CS149 students are not expected to implement TaskSystemParallelThreadPoolSpinning in Part B.
+    this->num_threads = num_threads;
+    this->lock = new std::mutex();
+    this->job_status = new std::condition_variable();
+    this->kill_flag = false;
+    this->job_number = 0;
+    this->jobs_complete = 0;
+    this->num_total_tasks = 0;
+    thread_pool = new std::thread[num_threads];
+    for (int i = 0; i < num_threads; i++) {
+        thread_pool[i] = std::thread(&TaskSystemParallelThreadPoolSpinning::spinning, this);
+    }
 }
 
-TaskSystemParallelThreadPoolSpinning::~TaskSystemParallelThreadPoolSpinning() {}
+void TaskSystemParallelThreadPoolSpinning::spinning() {
+    int task_id;
+    while (true) {
+        if (kill_flag) {
+            break;
+        }
+        lock->lock();
+        if (job_number >= num_total_tasks) {
+            lock->unlock();
+            std::this_thread::yield(); // schedule other threads!
+            continue;
+        }
+        else {
+            task_id = job_number;
+            job_number++;
+        }
+        lock->unlock();
+        runnable->runTask(task_id, num_total_tasks);
+        lock->lock();
+        jobs_complete++;
+        if (jobs_complete == num_total_tasks) {
+            job_status->notify_one();
+        }
+        lock->unlock();        
+    }
+}
+
+TaskSystemParallelThreadPoolSpinning::~TaskSystemParallelThreadPoolSpinning() {
+    kill_flag = true;
+    for (int i = 0; i < num_threads; i++) {
+        thread_pool[i].join();
+    }
+    delete lock;
+    delete[] thread_pool;
+    delete job_status;
+}
 
 void TaskSystemParallelThreadPoolSpinning::run(IRunnable* runnable, int num_total_tasks) {
-    // NOTE: CS149 students are not expected to implement TaskSystemParallelThreadPoolSpinning in Part B.
-    for (int i = 0; i < num_total_tasks; i++) {
-        runnable->runTask(i, num_total_tasks);
-    }
+    this->lock->lock();
+    this->runnable = runnable;
+    this->jobs_complete = 0;
+    this->num_total_tasks = num_total_tasks;
+    this->job_number = 0;
+    this->lock->unlock();
+    
+    // wait for all tasks to finish 
+    std::unique_lock<std::mutex> job_lock_unique(*this->lock);
+    this->job_status->wait(job_lock_unique, [&]{ return jobs_complete == num_total_tasks; });
 }
 
 TaskID TaskSystemParallelThreadPoolSpinning::runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
                                                               const std::vector<TaskID>& deps) {
-    // NOTE: CS149 students are not expected to implement TaskSystemParallelThreadPoolSpinning in Part B.
-    for (int i = 0; i < num_total_tasks; i++) {
-        runnable->runTask(i, num_total_tasks);
-    }
-
+    // You do not need to implement this method.
     return 0;
 }
 
 void TaskSystemParallelThreadPoolSpinning::sync() {
-    // NOTE: CS149 students are not expected to implement TaskSystemParallelThreadPoolSpinning in Part B.
+    // You do not need to implement this method.
     return;
 }
 
@@ -127,57 +196,192 @@ const char* TaskSystemParallelThreadPoolSleeping::name() {
 }
 
 TaskSystemParallelThreadPoolSleeping::TaskSystemParallelThreadPoolSleeping(int num_threads): ITaskSystem(num_threads) {
-    //
-    // TODO: CS149 student implementations may decide to perform setup
-    // operations (such as thread pool construction) here.
-    // Implementations are free to add new class member variables
-    // (requiring changes to tasksys.h).
-    //
+    this->num_threads = num_threads;
+    this->lock = new std::mutex();
+    this->job_status = new std::condition_variable();
+    this->task_status = new std::condition_variable();
+    this->kill_flag = false;
+    thread_pool = new std::thread[num_threads];
+
+    this->ready_queue = std::queue<std::tuple<IRunnable*, TaskID, int, int>>();
+    this->num_jobs_left = std::unordered_map<TaskID, int>();
+    this->waiting_tasks = std::set<std::tuple<IRunnable*, int, int, const std::vector<TaskID>&>>();
+    this->next_task_id = 0;
+
+    for (int i = 0; i < num_threads; i++) {
+        thread_pool[i] = std::thread(&TaskSystemParallelThreadPoolSleeping::spinning, this);
+    }
+}
+
+void TaskSystemParallelThreadPoolSleeping::spinning() {
+
+    IRunnable* runnable;
+    TaskID task_id;
+    int num_total_tasks;
+    int i;
+    
+    while (true) {
+        if (kill_flag) {
+            break;
+        }
+        lock->lock();
+
+        // check if there are jobs to do
+        if (ready_queue.empty()) {
+            lock->unlock();
+            std::unique_lock<std::mutex> task_lock_unique(*this->lock);
+            this->task_status->wait(task_lock_unique, [&]{ return !ready_queue.empty() || kill_flag; });
+            continue;
+        }
+        else {
+            auto& front_ready_queue = ready_queue.front();
+            runnable = std::get<0>(front_ready_queue);
+            task_id = std::get<1>(front_ready_queue);
+            i = std::get<2>(front_ready_queue);
+            num_total_tasks = std::get<3>(front_ready_queue);
+            ready_queue.pop();
+            std::cerr << "\n----------------TASK START----------------\n" << std::endl;
+            std::cerr << "task_id: " << task_id << std::endl;
+            std::cerr << "num_jobs_left[task_id]: " << num_jobs_left[task_id] << std::endl;
+            std::cerr << "---------------------------------------------\n" << std::endl;
+        }
+        lock->unlock();
+
+        runnable->runTask(i, num_total_tasks);
+
+        lock->lock();
+        num_jobs_left[task_id]--;
+        
+        // if all tasks in this task_id are complete, we need to check if any new 
+        // tasks in the waiting_tasks set are ready to be run
+
+        // also check if all jobs are done
+        if (num_jobs_left[task_id] == 0) {
+            std::cerr << "\n----------------TASK COMPLETE----------------\n" << std::endl;
+            std::cerr << "task_id: " << task_id << std::endl;
+            std::cerr << "num_jobs_left[task_id] == 0" << std::endl;
+            std::cerr << "waiting_tasks.size(): " << waiting_tasks.size() << std::endl;
+            std::cerr << "ready_queue.size(): " << ready_queue.size() << std::endl;
+            std::cerr << "---------------------------------------------\n" << std::endl;
+            // check if all jobs are
+            if (waiting_tasks.empty() && ready_queue.empty()) {
+                job_status->notify_one();
+            }
+
+            // check if any new tasks in the waiting_tasks set are ready to be run
+            for (auto iter = waiting_tasks.begin(); iter != waiting_tasks.end();) {
+
+                auto& front_waiting_tasks = *iter;
+                IRunnable* wait_runnable = std::get<0>(front_waiting_tasks);
+                TaskID wait_task_id = std::get<1>(front_waiting_tasks);
+                int wait_num_total_tasks = std::get<2>(front_waiting_tasks);
+                const std::vector<TaskID>& wait_deps = std::get<3>(front_waiting_tasks);
+
+                bool deps_met = true;
+                for (size_t j = 0; j < wait_deps.size(); j++) {
+                    if (num_jobs_left[wait_deps[j]] > 0) {
+                        deps_met = false;
+                        break;
+                    }
+                }
+                std::cerr << "\n----------------CHECKING DEPENDENCIES----------------\n" << std::endl;
+                std::cerr << "wait_task_id: " << wait_task_id << std::endl;
+                if (wait_deps.size() > 0) {
+                    std::cerr << "first dependency: " << wait_deps[0] << std::endl;
+                    std::cerr << "num_jobs_left[wait_deps[0]]: " << num_jobs_left[wait_deps[0]] << std::endl;
+                }
+                std::cerr << "wait_num_total_tasks: " << wait_num_total_tasks << std::endl;
+                std::cerr << "wait_deps.size(): " << wait_deps.size() << std::endl;
+                std::cerr << "deps_met: " << deps_met << std::endl;
+                std::cerr << "waiting_tasks.size(): " << waiting_tasks.size() << std::endl;
+                std::cerr << "---------------------------------------------\n" << std::endl;
+                if (deps_met) {
+                    for (int j = 0; j < wait_num_total_tasks; j++) {
+                        ready_queue.push(std::make_tuple(wait_runnable, wait_task_id, j, wait_num_total_tasks));
+                    }
+                    iter = waiting_tasks.erase(iter);
+                    task_status->notify_all();
+                }
+                else {
+                    iter++;
+                }
+            }
+        }
+        lock->unlock();        
+    }
 }
 
 TaskSystemParallelThreadPoolSleeping::~TaskSystemParallelThreadPoolSleeping() {
-    //
-    // TODO: CS149 student implementations may decide to perform cleanup
-    // operations (such as thread pool shutdown construction) here.
-    // Implementations are free to add new class member variables
-    // (requiring changes to tasksys.h).
-    //
+    kill_flag = true;
+
+    // wake up the threads so they can die
+    this->task_status->notify_all();
+
+    // join the threads
+    for (int i = 0; i < num_threads; i++) {
+        thread_pool[i].join();
+    }
+
+    // free up resources
+    delete lock;
+    delete task_status;
+    delete[] thread_pool;
+    delete job_status;
 }
 
 void TaskSystemParallelThreadPoolSleeping::run(IRunnable* runnable, int num_total_tasks) {
-
-
-    //
-    // TODO: CS149 students will modify the implementation of this
-    // method in Parts A and B.  The implementation provided below runs all
-    // tasks sequentially on the calling thread.
-    //
-
-    for (int i = 0; i < num_total_tasks; i++) {
-        runnable->runTask(i, num_total_tasks);
-    }
+    runAsyncWithDeps(runnable, num_total_tasks, {});
+    sync();
 }
 
 TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
                                                     const std::vector<TaskID>& deps) {
+    
 
+    std::cerr << "runAsyncWithDeps" << std::endl;
+    TaskID task_id = next_task_id; 
+    next_task_id++;
 
-    //
-    // TODO: CS149 students will implement this method in Part B.
-    //
-
-    for (int i = 0; i < num_total_tasks; i++) {
-        runnable->runTask(i, num_total_tasks);
+    lock->lock();
+    
+    // check if dependencies are already met
+    bool deps_met = true;
+    for (size_t i = 0; i < deps.size(); i++) {
+        if (num_jobs_left[deps[i]] > 0) {
+            deps_met = false;
+            break;
+        }
     }
 
-    return 0;
+    std::cerr << "deps_met: " << deps_met << std::endl;
+
+    // mark this task as not complete
+    num_jobs_left[task_id] = num_total_tasks;
+    std::cerr << "BRUH " << std::endl;
+    if (deps_met){
+        std::cerr << "BRUH  DEPS MET" << std::endl;
+        // add to ready queue
+        for (int i = 0; i < num_total_tasks; i++) { 
+            ready_queue.push(std::make_tuple(runnable, task_id, i, num_total_tasks));
+        }
+        // notify all threads
+        task_status->notify_all();
+    }
+    else {
+        std::cerr << "BRUH  DEPS NOT MET" << std::endl;
+        // add to waiting tasks 
+        waiting_tasks.insert(std::make_tuple(runnable, task_id, num_total_tasks, deps));
+        std::cerr << "added to waiting tasks" << std::endl;
+        std::cerr << "waiting_tasks.size(): " << waiting_tasks.size() << std::endl;
+        std::cerr << "---------------------------------------------\n" << std::endl;
+    }
+    lock->unlock();
+    
+    return task_id;    
 }
 
 void TaskSystemParallelThreadPoolSleeping::sync() {
-
-    //
-    // TODO: CS149 students will modify the implementation of this method in Part B.
-    //
-
+    std::unique_lock<std::mutex> job_lock_unique(*this->lock);
+    this->job_status->wait(job_lock_unique, [&]{ return ready_queue.empty() && waiting_tasks.empty(); });
     return;
 }
