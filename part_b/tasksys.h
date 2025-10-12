@@ -106,6 +106,8 @@ class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
 
         std::atomic<TaskID> next_task_id;
         int threads_at_work;
+        //double compute_time;
+        //double sleep_time;
         
 
         std::mutex* lock;

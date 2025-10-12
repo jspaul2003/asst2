@@ -1,5 +1,6 @@
 #include "tasksys.h"
 #include <iostream>
+#include "CycleTimer.h"
 
 
 
@@ -221,16 +222,25 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
     TaskID task_id;
     int num_total_tasks;
     int i;
+    //double start_time;
+    //double end_time;
     
     while (true) {
+        //start_time = CycleTimer::currentSeconds();
         std::unique_lock<std::mutex> task_lock_unique(*this->lock);
-        this->task_status->wait(task_lock_unique, [&]{ return !ready_queue.empty() || kill_flag; });
+        this->task_status->wait(task_lock_unique, [&]{ return !ready_queue.empty() || !waiting_tasks.empty() || kill_flag; });
+        //end_time = CycleTimer::currentSeconds();
+        //sleep_time += (end_time - start_time);
         //std::cerr << "BRUH ready_queue.size(): " << ready_queue.size() << std::endl;
         
         if (kill_flag) {
             break;
         }
         
+        if (ready_queue.empty()) {
+            continue;
+        }
+
         auto& front_ready_queue = ready_queue.front();
         runnable = front_ready_queue.runnable;
         task_id = front_ready_queue.task_id;
@@ -239,13 +249,16 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
         int to_process = front_ready_queue.batch_size;
         threads_at_work++;
         ready_queue.pop();
+        
         task_lock_unique.unlock();
-
+        //start_time = CycleTimer::currentSeconds();
         for (int j = i; j < num_total_tasks; j+=to_process) {
             runnable->runTask(j, num_total_tasks);
         }
+        //end_time = CycleTimer::currentSeconds();
 
         task_lock_unique.lock();
+        //compute_time += (end_time - start_time);
         num_jobs_left[task_id] = num_jobs_left[task_id] - 1;
         threads_at_work--;
         
@@ -279,7 +292,7 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
                     bool was_empty = ready_queue.empty();
                     int batch_size = num_threads;
                     int num_batches = 0;
-                    for (int j = 0; j < batch_size; j+=1) {
+                    for (int j = 0; j < std::min(batch_size, wait_num_total_tasks); j+=1) {
                         TaskBatch task_batch = {wait_runnable, wait_task_id, j, wait_num_total_tasks, batch_size};
                         ready_queue.push(task_batch);
                         num_batches++;
@@ -328,6 +341,7 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnabl
     next_task_id++;
 
     lock->lock();
+    //std::cerr << "num_total_tasks: " << num_total_tasks << std::endl;
     
     // check if dependencies are already met
     bool deps_met = true;
@@ -343,7 +357,8 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnabl
         bool was_empty = ready_queue.empty();
         // add to ready queue with built in batching 
         int num_batches = 0;
-        for (int i = 0; i < batch_size; i+=1) { 
+        // nb if we have less tasks than threads, our striding batching approach is useless!
+        for (int i = 0; i < std::min(batch_size, num_total_tasks); i+=1) { 
             TaskBatch task_batch = {runnable, task_id, i, num_total_tasks, batch_size};
             ready_queue.push(task_batch);
             num_batches++;
@@ -371,5 +386,7 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnabl
 void TaskSystemParallelThreadPoolSleeping::sync() {
     std::unique_lock<std::mutex> job_lock_unique(*this->lock);
     this->job_status->wait(job_lock_unique, [&]{ return ready_queue.empty() && waiting_tasks.empty() && threads_at_work == 0; });
+    //std::cerr << "compute_time ms: " << compute_time*1000/num_threads << std::endl;
+    //std::cerr << "sleep_time ms: " << sleep_time*1000/num_threads << std::endl;
     return;
 }
