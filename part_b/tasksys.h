@@ -101,7 +101,7 @@ class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
     private:
         void spinning();
         std::queue<TaskBatch> ready_queue;
-        std::unordered_map<TaskID, int> num_jobs_left;
+        std::vector<int> num_jobs_left;
         std::vector<WaitingTask> waiting_tasks;
 
         std::atomic<TaskID> next_task_id;

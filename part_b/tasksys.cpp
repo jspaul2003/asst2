@@ -205,7 +205,7 @@ TaskSystemParallelThreadPoolSleeping::TaskSystemParallelThreadPoolSleeping(int n
     thread_pool = new std::thread[num_threads];
 
     this->ready_queue = std::queue<TaskBatch>();
-    this->num_jobs_left = std::unordered_map<TaskID, int>();
+    this->num_jobs_left = std::vector<int>();
     this->waiting_tasks = std::vector<WaitingTask>();
     this->next_task_id = 0;
     this->threads_at_work = 0;
@@ -241,12 +241,12 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
         ready_queue.pop();
         task_lock_unique.unlock();
 
-        for (int j = i; j < std::min(i + to_process, num_total_tasks); j++) {
+        for (int j = i; j < num_total_tasks; j+=to_process) {
             runnable->runTask(j, num_total_tasks);
         }
 
         task_lock_unique.lock();
-        num_jobs_left[task_id]--;
+        num_jobs_left[task_id] = num_jobs_left[task_id] - 1;
         threads_at_work--;
         
         // if all tasks in this task_id are complete, we need to check if any new 
@@ -277,9 +277,9 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
                 }
                 if (deps_met) {
                     bool was_empty = ready_queue.empty();
-                    int batch_size = std::max(1, wait_num_total_tasks/num_threads);
+                    int batch_size = num_threads;
                     int num_batches = 0;
-                    for (int j = 0; j < wait_num_total_tasks; j+=batch_size) {
+                    for (int j = 0; j < batch_size; j+=1) {
                         TaskBatch task_batch = {wait_runnable, wait_task_id, j, wait_num_total_tasks, batch_size};
                         ready_queue.push(task_batch);
                         num_batches++;
@@ -338,30 +338,32 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnabl
         }
     }
 
-    int batch_size = std::max(1, num_total_tasks/num_threads);
+    int batch_size = num_threads;
     if (deps_met){
         bool was_empty = ready_queue.empty();
         // add to ready queue with built in batching 
         int num_batches = 0;
-        for (int i = 0; i < num_total_tasks; i+=batch_size) { 
+        for (int i = 0; i < batch_size; i+=1) { 
             TaskBatch task_batch = {runnable, task_id, i, num_total_tasks, batch_size};
             ready_queue.push(task_batch);
             num_batches++;
         }
         // mark this task as not complete
-        num_jobs_left[task_id] = num_batches;
+        num_jobs_left.push_back(num_batches);
         // notify all threads
+        lock->unlock();
         if (was_empty) {
             task_status->notify_all();
         }
     }
     else {
         // add to waiting tasks 
-        num_jobs_left[task_id] = 1; // not zero, the task is not done!
+        num_jobs_left.push_back(1); // not zero, the task is not done!
         WaitingTask waiting_task = {runnable, task_id, num_total_tasks, deps};
         waiting_tasks.push_back(waiting_task);
+        lock->unlock();
     }
-    lock->unlock();
+
     
     return task_id;    
 }
