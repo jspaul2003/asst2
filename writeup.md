@@ -29,9 +29,11 @@ Let's compare and contrast these two tasks as way of understanding the benefits 
 
 In what situations did the spawn-every-launch implementation perform as well as the more advanced parallel implementations that use a thread pool? When does it not?
 
-it looks like we currently fail on `spin_betwee_run_calls`
+it looks like we currently fail on `spin_between_run_calls`. seems like we usually don't segfault. I guess if I really cared I could run under valgrind.
 
 always spawn is roughly comparable on `ping_pong` (equal and unequal), `recursive_fibonacci`, `math_operations_in_tight_for_loop_reduction_tree`, and `mandelbrot_chunked`. On the other tasks, thread poling does better. 
+
+
 
 ```
 (base) xavier18@myth62:~/cs149/asst2/part_a$ python3 ../tests/run_test_harness.py
