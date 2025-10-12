@@ -166,7 +166,8 @@ int main(int argc, char** argv)
         printf("============================================================="
                "======================\n");
 
-        for (int i = 0; i < N_TASKSYS_IMPLS; i++) {
+        // TO REMOVE: mod for async testing
+        for (int i = N_TASKSYS_IMPLS-1; i < N_TASKSYS_IMPLS; i++) {
             double minT = 1e30;
             for (int j = 0; j < num_timing_iterations; j++) {
 
