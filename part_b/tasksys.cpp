@@ -1,6 +1,8 @@
 #include "tasksys.h"
 #include <iostream>
 
+#define DEBUG 0
+
 
 IRunnable::~IRunnable() {}
 
@@ -205,7 +207,7 @@ TaskSystemParallelThreadPoolSleeping::TaskSystemParallelThreadPoolSleeping(int n
 
     this->ready_queue = std::queue<std::tuple<IRunnable*, TaskID, int, int>>();
     this->num_jobs_left = std::unordered_map<TaskID, int>();
-    this->waiting_tasks = std::set<std::tuple<IRunnable*, int, int, const std::vector<TaskID>&>>();
+    this->waiting_tasks = std::set<std::tuple<IRunnable*, int, int, std::vector<TaskID>>>();
     this->next_task_id = 0;
 
     for (int i = 0; i < num_threads; i++) {
@@ -240,10 +242,12 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
             i = std::get<2>(front_ready_queue);
             num_total_tasks = std::get<3>(front_ready_queue);
             ready_queue.pop();
-            std::cerr << "\n----------------TASK START----------------\n" << std::endl;
-            std::cerr << "task_id: " << task_id << std::endl;
-            std::cerr << "num_jobs_left[task_id]: " << num_jobs_left[task_id] << std::endl;
-            std::cerr << "---------------------------------------------\n" << std::endl;
+            if (DEBUG) {
+                std::cerr << "\n----------------TASK START----------------\n" << std::endl;
+                std::cerr << "task_id: " << task_id << std::endl;
+                std::cerr << "num_jobs_left[task_id]: " << num_jobs_left[task_id] << std::endl;
+                std::cerr << "---------------------------------------------\n" << std::endl;
+            }
         }
         lock->unlock();
 
@@ -256,13 +260,15 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
         // tasks in the waiting_tasks set are ready to be run
 
         // also check if all jobs are done
-        if (num_jobs_left[task_id] == 0) {
-            std::cerr << "\n----------------TASK COMPLETE----------------\n" << std::endl;
-            std::cerr << "task_id: " << task_id << std::endl;
-            std::cerr << "num_jobs_left[task_id] == 0" << std::endl;
-            std::cerr << "waiting_tasks.size(): " << waiting_tasks.size() << std::endl;
-            std::cerr << "ready_queue.size(): " << ready_queue.size() << std::endl;
-            std::cerr << "---------------------------------------------\n" << std::endl;
+        if (num_jobs_left[task_id] == 0) {  
+            if (DEBUG) {    
+                std::cerr << "\n----------------TASK COMPLETE----------------\n" << std::endl;
+                std::cerr << "task_id: " << task_id << std::endl;
+                std::cerr << "num_jobs_left[task_id] == 0" << std::endl;
+                std::cerr << "waiting_tasks.size(): " << waiting_tasks.size() << std::endl;
+                std::cerr << "ready_queue.size(): " << ready_queue.size() << std::endl;
+                std::cerr << "---------------------------------------------\n" << std::endl;
+            }
             // check if all jobs are
             if (waiting_tasks.empty() && ready_queue.empty()) {
                 job_status->notify_one();
@@ -284,17 +290,19 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
                         break;
                     }
                 }
-                std::cerr << "\n----------------CHECKING DEPENDENCIES----------------\n" << std::endl;
-                std::cerr << "wait_task_id: " << wait_task_id << std::endl;
-                if (wait_deps.size() > 0) {
-                    std::cerr << "first dependency: " << wait_deps[0] << std::endl;
-                    std::cerr << "num_jobs_left[wait_deps[0]]: " << num_jobs_left[wait_deps[0]] << std::endl;
+                if (DEBUG) {
+                    std::cerr << "\n----------------CHECKING DEPENDENCIES----------------\n" << std::endl;
+                    std::cerr << "wait_task_id: " << wait_task_id << std::endl;
+                    if (wait_deps.size() > 0) {
+                        std::cerr << "first dependency: " << wait_deps[0] << std::endl;
+                        std::cerr << "num_jobs_left[wait_deps[0]]: " << num_jobs_left[wait_deps[0]] << std::endl;
+                    }
+                    std::cerr << "wait_num_total_tasks: " << wait_num_total_tasks << std::endl;
+                    std::cerr << "wait_deps.size(): " << wait_deps.size() << std::endl;
+                    std::cerr << "deps_met: " << deps_met << std::endl;
+                    std::cerr << "waiting_tasks.size(): " << waiting_tasks.size() << std::endl;
+                    std::cerr << "---------------------------------------------\n" << std::endl;
                 }
-                std::cerr << "wait_num_total_tasks: " << wait_num_total_tasks << std::endl;
-                std::cerr << "wait_deps.size(): " << wait_deps.size() << std::endl;
-                std::cerr << "deps_met: " << deps_met << std::endl;
-                std::cerr << "waiting_tasks.size(): " << waiting_tasks.size() << std::endl;
-                std::cerr << "---------------------------------------------\n" << std::endl;
                 if (deps_met) {
                     for (int j = 0; j < wait_num_total_tasks; j++) {
                         ready_queue.push(std::make_tuple(wait_runnable, wait_task_id, j, wait_num_total_tasks));
@@ -338,7 +346,9 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnabl
                                                     const std::vector<TaskID>& deps) {
     
 
-    std::cerr << "runAsyncWithDeps" << std::endl;
+    if (DEBUG) {
+        std::cerr << "runAsyncWithDeps" << std::endl;
+    }
     TaskID task_id = next_task_id; 
     next_task_id++;
 
@@ -353,13 +363,19 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnabl
         }
     }
 
-    std::cerr << "deps_met: " << deps_met << std::endl;
+    if (DEBUG) {
+        std::cerr << "deps_met: " << deps_met << std::endl;
+    }
 
     // mark this task as not complete
     num_jobs_left[task_id] = num_total_tasks;
-    std::cerr << "BRUH " << std::endl;
+    if (DEBUG) {
+        std::cerr << "BRUH " << std::endl;
+    }
     if (deps_met){
-        std::cerr << "BRUH  DEPS MET" << std::endl;
+        if (DEBUG) {
+            std::cerr << "BRUH  DEPS MET" << std::endl;
+        }
         // add to ready queue
         for (int i = 0; i < num_total_tasks; i++) { 
             ready_queue.push(std::make_tuple(runnable, task_id, i, num_total_tasks));
@@ -368,12 +384,16 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnabl
         task_status->notify_all();
     }
     else {
-        std::cerr << "BRUH  DEPS NOT MET" << std::endl;
+        if (DEBUG) {
+            std::cerr << "BRUH  DEPS NOT MET" << std::endl;
+        }
         // add to waiting tasks 
-        waiting_tasks.insert(std::make_tuple(runnable, task_id, num_total_tasks, deps));
-        std::cerr << "added to waiting tasks" << std::endl;
-        std::cerr << "waiting_tasks.size(): " << waiting_tasks.size() << std::endl;
-        std::cerr << "---------------------------------------------\n" << std::endl;
+        waiting_tasks.emplace(runnable, task_id, num_total_tasks, deps);
+        if (DEBUG) {
+            std::cerr << "added to waiting tasks" << std::endl;
+            std::cerr << "waiting_tasks.size(): " << waiting_tasks.size() << std::endl;
+            std::cerr << "---------------------------------------------\n" << std::endl;
+        }
     }
     lock->unlock();
     

@@ -88,7 +88,9 @@ class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
         void spinning();
         std::queue<std::tuple<IRunnable*, TaskID, int, int>> ready_queue;
         std::unordered_map<TaskID, int> num_jobs_left;
-        std::set<std::tuple<IRunnable*, TaskID, int, const std::vector<TaskID>&>> waiting_tasks;
+        using Waiting = std::tuple<IRunnable*, TaskID, int, std::vector<TaskID>>;
+        std::set<Waiting> waiting_tasks;
+        //std::set<std::tuple<IRunnable*, TaskID, int, const std::vector<TaskID>&>> waiting_tasks;
 
         std::atomic<TaskID> next_task_id;
 
