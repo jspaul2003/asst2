@@ -200,12 +200,13 @@ const char* TaskSystemParallelThreadPoolSleeping::name() {
 }
 
 TaskSystemParallelThreadPoolSleeping::TaskSystemParallelThreadPoolSleeping(int num_threads): ITaskSystem(num_threads) {
+    //std::cerr << "Ligma" << std::endl;
     this->num_threads = num_threads;
     this->lock = new std::mutex();
     this->job_status = new std::condition_variable();
     this->task_status = new std::condition_variable();
     this->kill_flag = false;
-    thread_pool = new std::thread[num_threads];
+    this->thread_pool = new std::thread[num_threads];
     this->job_number = 0;
     this->jobs_complete = 0;
     this->num_total_tasks = 0;
@@ -216,38 +217,52 @@ TaskSystemParallelThreadPoolSleeping::TaskSystemParallelThreadPoolSleeping(int n
 
 void TaskSystemParallelThreadPoolSleeping::spinning() {
     int task_id;
+    int completed;
+    int my_job_count;
+    int BATCH_SIZE;
+    int max_iter;
     while (true) {
+
+        // put thread to sleep
+        // must wait for death or task
+        std::unique_lock<std::mutex> task_lock_unique(*this->lock);
+        this->task_status->wait(task_lock_unique, [&]{ 
+            return (job_number < num_total_tasks) || kill_flag; 
+        });
+        BATCH_SIZE = std::max(1, num_total_tasks/num_threads/4); 
+        // 4 picked to even out thread batches in a manner similar to lecture
+        // hopefully enabling work being spread out better
+
         if (kill_flag) {
             break;
         }
-        lock->lock();
-        if (job_number >= num_threads) {
-            lock->unlock();
-            // put thread to sleep
-            std::unique_lock<std::mutex> task_lock_unique(*this->lock);
-            this->task_status->wait(task_lock_unique, [&]{ return (job_number < num_total_tasks) || kill_flag; });
+
+        // grab next task
+        task_id = job_number.fetch_add(BATCH_SIZE);
+        if (task_id >= num_total_tasks) {
+            task_lock_unique.unlock();
             continue;
         }
-        else {
-            task_id = job_number;
-            job_number ++;
-        }
-        lock->unlock();
-        int my_job_count = 0;
-        for (int i = task_id; i < num_total_tasks; i+=num_threads) {
+        task_lock_unique.unlock();
+        max_iter = std::min(task_id+BATCH_SIZE, num_total_tasks);
+
+        my_job_count = 0;
+        for (int i = task_id; i < max_iter; i++) {
             runnable->runTask(i, num_total_tasks);
             my_job_count++;
         }
-        lock->lock();
-        jobs_complete+=my_job_count;
-        if (jobs_complete >= num_total_tasks) {
+
+        completed = jobs_complete.fetch_add(my_job_count) + my_job_count;
+        if (completed >= num_total_tasks) {
+            lock->lock();
             job_status->notify_one();
+            lock->unlock();
         }
-        lock->unlock();        
     }
 }
 
 TaskSystemParallelThreadPoolSleeping::~TaskSystemParallelThreadPoolSleeping() {
+    //std::cerr << "Destroying TaskSystemParallelThreadPoolSleeping" << std::endl;
     kill_flag = true;
 
     // wake up the threads so they can die
@@ -263,20 +278,22 @@ TaskSystemParallelThreadPoolSleeping::~TaskSystemParallelThreadPoolSleeping() {
     delete task_status;
     delete[] thread_pool;
     delete job_status;
+    //std::cerr << "Gone" << std::endl;
 }
 
 void TaskSystemParallelThreadPoolSleeping::run(IRunnable* runnable, int num_total_tasks) {
     this->lock->lock();
     this->runnable = runnable;
-    this->jobs_complete = 0;
+    this->jobs_complete.store(0);
     this->num_total_tasks = num_total_tasks;
-    this->job_number = 0;
+    this->job_number.store(0);
     this->lock->unlock();
+    
     this->task_status->notify_all();
     
     // wait for all tasks to finish 
     std::unique_lock<std::mutex> job_lock_unique(*this->lock);
-    this->job_status->wait(job_lock_unique, [&]{ return jobs_complete == num_total_tasks; });
+    this->job_status->wait(job_lock_unique, [&]{ return jobs_complete.load() >= num_total_tasks; });
 }
 
 TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,

@@ -6,6 +6,7 @@
 #include <mutex>
 #include <queue>
 #include <condition_variable>
+#include <atomic>
 
 /*
  * TaskSystemSerial: This class is the student's implementation of a
@@ -81,14 +82,16 @@ class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
 class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
     private:
         void spinning();
+
         std::mutex* lock;
-        int job_number;
+        
+        std::atomic<int> job_number;
         IRunnable* runnable;
         int num_total_tasks;
         bool kill_flag;
         std::condition_variable* job_status;
         std::condition_variable* task_status;
-        int jobs_complete;
+        std::atomic<int> jobs_complete;
     public:
         std::thread* thread_pool;
         int num_threads;
