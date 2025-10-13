@@ -229,9 +229,11 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
         this->task_status->wait(task_lock_unique, [&]{ 
             return (job_number < num_total_tasks) || kill_flag; 
         });
-        BATCH_SIZE = std::max(1, num_total_tasks/num_threads/4); 
-        // 4 picked to even out thread batches in a manner similar to lecture
+        BATCH_SIZE = std::max(1, num_total_tasks/num_threads/3); 
+        // 3 picked to even out thread batches in a manner similar to lecture
         // hopefully enabling work being spread out better
+        // smaller batch size allows for more even work distribution but for small 
+        // tasks it is a waste of time to run the thread for so little work...
 
         if (kill_flag) {
             break;
