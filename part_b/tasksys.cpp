@@ -289,7 +289,7 @@ void TaskSystemParallelThreadPoolSleeping::spinning() {
                     }
                 }
                 if (deps_met) {
-                    bool was_empty = ready_queue.empty();
+                    bool was_empty = ready_queue.empty() && waiting_tasks.empty();
                     int batch_size = num_threads;
                     int num_batches = 0;
                     for (int j = 0; j < std::min(batch_size, wait_num_total_tasks); j+=1) {
@@ -354,7 +354,7 @@ TaskID TaskSystemParallelThreadPoolSleeping::runAsyncWithDeps(IRunnable* runnabl
 
     int batch_size = num_threads;
     if (deps_met){
-        bool was_empty = ready_queue.empty();
+        bool was_empty = ready_queue.empty() && waiting_tasks.empty();
         // add to ready queue with built in batching 
         int num_batches = 0;
         // nb if we have less tasks than threads, our striding batching approach is useless!
