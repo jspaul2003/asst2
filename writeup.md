@@ -43,3 +43,6 @@ It is interesting that the parallel implementations were slower than serial on t
 
 ### part b
 
+For part b, to check correctness, we implemented `simpleAccumulateTest`. It was inspired by the structure of the sleep test, but the sleep test just printed out numbers for a visual inspection. I wanted to see if we could update a pointer asyncrhonously and get the correct result.
+
+To do so, I used three tasks (A -> B -> C), where each task raised the current value of a pointer to a power (i.e., this operator is non-associative, unlike addition or multiplication, and so would raise an error if done out of order). Thus, the async implementation needs to be done correctly to give the right result. This test confirms the correctness of the async implementation.
