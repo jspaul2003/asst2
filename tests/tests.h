@@ -1477,3 +1477,55 @@ TestResults matMulTest(ITaskSystem* t) {
 
     return result;
 }
+
+class SimpleAccumulateTask: public IRunnable{
+    public:
+        int power_;
+        int *output_;
+        SimpleAccumulateTask(int power, int *output) {
+            power_ = power;
+            output_ = output;
+        }
+        ~SimpleAccumulateTask() {}
+
+        void runTask(int task_id, int num_total_tasks) {
+            int base = *output_;
+            for (int i=0; i<(power_-1); i++){
+                *output_ *= base;
+            }
+        }
+};
+
+TestResults simpleAccumulateTest(ITaskSystem *t){
+    int* output = new int(2);
+    IRunnable* a = new SimpleAccumulateTask(1, output);
+    IRunnable* b = new SimpleAccumulateTask(2, output);
+    IRunnable* c = new SimpleAccumulateTask(3, output);
+
+    std::vector<TaskID> a_deps;
+    std::vector<TaskID> b_deps;
+    std::vector<TaskID> c_deps;
+
+    double start_time = CycleTimer::currentSeconds();
+    auto a_taskid = t->runAsyncWithDeps(a, 1, a_deps);
+    b_deps.push_back(a_taskid);
+    auto b_task_id = t->runAsyncWithDeps(b, 1, b_deps);
+    c_deps.push_back(b_task_id);
+    t->runAsyncWithDeps(c, 1, c_deps);
+    t->sync();
+    double end_time = CycleTimer::currentSeconds();
+    TestResults result;
+    if (*output == 64) {
+        result.passed = true;
+    } else {
+        printf("Got %d, expected 64\n", *output);
+        result.passed = false;
+    }
+    result.time = end_time - start_time;
+
+    delete a;
+    delete b;
+    delete c;
+
+    return result;
+}

@@ -31,11 +31,15 @@ A great case study is look at `super_light` vs `ping_pong_equal`. Both of these 
 
 ## Question 3
 
-We implemented `matMulTest`, which multiplied 5 2x2 matrices of the form {{2,2}, {0,2}}.
+### part a
+
+A test we implemented for part a was `matMulTest`, which multiplied 5 2x2 matrices of the form {{2,2}, {0,2}}.
 
 The test is meant to check if our implementations can still be correct in the context of matrix multplication, which involves mixing multiple linput variables. Matrix multiplication is also a very important primitive in machine learning.
 
-I was able to verify correctnes of the solution by checking the output of the test against a hand-calculated result. The result of the test did not cause me to change my implementation, but it did give me more confidence that my implementation was correct.
+I was able to verify correctnes of the solution by checking the output of the test against a hand-calculated result. The result of the test did not cause me to change the implementation, but it did give me more confidence that the implementation was correct.
 
-It is interesting that the parallel implementations were slower than serial on this test. This is liekly because the number and size of the matrices multiplied together were small.
+It is interesting that the parallel implementations were slower than serial on this test. This is likley because the number and size of the matrices multiplied together were small.
+
+### part b
 
