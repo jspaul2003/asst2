@@ -119,10 +119,10 @@ TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int n
     this->lock = new std::mutex();
     this->job_status = new std::condition_variable();
     this->kill_flag = false;
+    this->thread_pool = new std::thread[num_threads];
     this->job_number = 0;
     this->jobs_complete = 0;
     this->num_total_tasks = 0;
-    thread_pool = new std::thread[num_threads];
     for (int i = 0; i < num_threads; i++) {
         thread_pool[i] = std::thread(&TaskSystemParallelThreadPoolSpinning::spinning, this);
     }
@@ -130,28 +130,43 @@ TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(int n
 
 void TaskSystemParallelThreadPoolSpinning::spinning() {
     int task_id;
+    int completed;
+    int my_job_count;
+    int BATCH_SIZE;
+    int max_iter;
     while (true) {
+        BATCH_SIZE = std::max(1, num_total_tasks/num_threads/3); 
+        // 3 picked to even out thread batches in a manner similar to lecture
+        // hopefully enabling work being spread out better
+        // smaller batch size allows for more even work distribution but for small 
+        // tasks it is a waste of time to run the thread for so little work...
+
         if (kill_flag) {
             break;
         }
         lock->lock();
-        if (job_number >= num_total_tasks) {
+        // grab next task
+        task_id = job_number.fetch_add(BATCH_SIZE);
+        if (task_id >= num_total_tasks) {
             lock->unlock();
-            std::this_thread::yield(); // schedule other threads!
             continue;
         }
-        else {
-            task_id = job_number;
-            job_number++;
-        }
         lock->unlock();
-        runnable->runTask(task_id, num_total_tasks);
-        lock->lock();
-        jobs_complete++;
-        if (jobs_complete == num_total_tasks) {
-            job_status->notify_one();
+        
+        max_iter = std::min(task_id+BATCH_SIZE, num_total_tasks);
+
+        my_job_count = 0;
+        for (int i = task_id; i < max_iter; i++) {
+            runnable->runTask(i, num_total_tasks);
+            my_job_count++;
         }
-        lock->unlock();        
+
+        completed = jobs_complete.fetch_add(my_job_count) + my_job_count;
+        if (completed >= num_total_tasks) {
+            lock->lock();
+            job_status->notify_one();
+            lock->unlock();
+        }
     }
 }
 
@@ -168,14 +183,14 @@ TaskSystemParallelThreadPoolSpinning::~TaskSystemParallelThreadPoolSpinning() {
 void TaskSystemParallelThreadPoolSpinning::run(IRunnable* runnable, int num_total_tasks) {
     this->lock->lock();
     this->runnable = runnable;
-    this->jobs_complete = 0;
+    this->jobs_complete.store(0);
     this->num_total_tasks = num_total_tasks;
-    this->job_number = 0;
+    this->job_number.store(0);
     this->lock->unlock();
     
     // wait for all tasks to finish 
     std::unique_lock<std::mutex> job_lock_unique(*this->lock);
-    this->job_status->wait(job_lock_unique, [&]{ return jobs_complete == num_total_tasks; });
+    this->job_status->wait(job_lock_unique, [&]{ return jobs_complete.load() >= num_total_tasks; });
 }
 
 TaskID TaskSystemParallelThreadPoolSpinning::runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
