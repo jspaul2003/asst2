@@ -1,9 +1,45 @@
 # Written assignment 2
 
 Xavier Gonzalez: xavier18
+
 JS Paul: jspaul
 
 ## Question 1
+
+The TaskSystem is a way to use the parallel resources to schedule and complete bulk task launches, including those launched asynchronously and with dependencies. In fact, in the implementation in part B for the synchronous run is simply the asynchronous call with no dependencies. 
+
+Each bulk task launch consists of some task of type `IRunnable`; a total number of task; and a set of dependencies (which may be empty). In order to run, we need to check whether its dependencies have been satisfied or not. We do this under a lock because we will be adding the bulk task launch to one of two (global) queues depending on wether its dependencies are satisfied or not (see discussion about tracking dependencies). 
+
+Once a task is ready to be run, it is then worked on my a thread in the thread pool, which is created once during construction of the TaskSystem (the size of the thread pool is the only required input). 
+The threads are sleeping to avoid overhead but are woken up via condition variables when new work arrives, and they do the work. Finally, when work is done, they notify the main thread via a condition variable that all work is done.
+
+
+### Thread management
+
+As suggested by part A, step 2, the implementation uses a persistent thread pool created once during construction. Worker threads are spawned in the constructor and continuously execute a `spinning()` function, sleeping when no work is available and waking via condition variables when new tasks arrive. 
+
+We also need a mechanism do know when all the work is done. 
+
+In part A, After the thread have done their assigned work (see next section for discussion of task assignment), we increment a shared counter named `jobs_complete` using an atomic (to avoid race). In this way, each worker thread can accurately tell if all the tasks have been completed, notifying the main thread via a condition variable once all tasks are done. 
+
+In part B, the condition variable is triggered when the queues holding the ready and waiting tasks are empty (see discussion of tracking dependencies), meaning all tasks are done
+
+### Dynamic Assignment
+
+We use dynamic assignment of tasks to threads, which lets us be flexible in balancing the load. However, we use a batch size, as similar to ideas in lecture. The gist is that it's not worth the overhed of waking up a thread just to do a single tiny task. On the other hand, if we had a thread to a large batch of tasks, the risk is that a pulse of long tasks could cause serious load imbalance. So, we pick a batch size as a compromise. We use a batch size of 3 in part A. In part B, we divide up the total number of tasks in a given task launch by the total number of threads in the thread pool (i.e. the batch size is changing with the size of the bulk task launch).
+
+### Tracking dependencies
+
+To track dependencies in part B, there are a number of data structures set up.
+
+ One is a vector of ints called `num_jobs_left`. This vector is set up so that if we index into `num_jobs_left` with the appropriate `task_id`, we can see how many jobs are left before the task is complete. This value is decremented has jobs are finished, and serves as an indicator of when tasks that depend on this task can be started (i.e. when `num_jobs_left[task_id]` reaches 0).
+
+ This vector is useful for deciding what to do when we run a bulk task with `runAsyncWithDeps`. 
+ * If the `deps` of this bulk task launch are not met (as indicated by looking at the appropriate entries of `num_jobs_left`), then we add an appropriate instance of the `WaitingTask` struct to the `waiting_tasks` queue. This `WaitingTask` tracks the dependencies of this bulk task launch, and when the dependencies are met, we can launch the bulk task. 
+ * If the `deps` of this bulk task launch are met, then we add an appropriate instance of the `ReadyTask` struct to the `ready_queue`. This `ReadyTask` represents a task that is ready to be executed, as all of its dependencies have been satisfied.
+
+ When a thread is awake, it first checks the `ready_queue` for any `ReadyTask`s. If not, goes back to the start of the loop and check again. If there are any, it executes the task at the front of the ready queue, and then cycles through the `waiting_queue` to see if any of the `WaitingTask`s now have their dependencies satisfied. If so, it moves them to the `ready_queue`.  
+
 
 ## Question 2
 
