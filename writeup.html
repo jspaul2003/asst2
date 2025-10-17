@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>writeup.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="written-assignment-2">Written assignment 2</h1>
+<p>Xavier Gonzalez: xavier18</p>
+<p>JS Paul: jspaul</p>
+<h2 id="question-1">Question 1</h2>
+<p>The TaskSystem is a way to use the parallel resources to schedule and complete bulk task launches, including those launched asynchronously and with dependencies. In fact, in the implementation in part B for the synchronous run is simply the asynchronous call with no dependencies.</p>
+<p>Each bulk task launch consists of some task of type <code>IRunnable</code>; a total number of task; and a set of dependencies (which may be empty). In order to run, we need to check whether its dependencies have been satisfied or not. We do this under a lock because we will be adding the bulk task launch to one of two (global) queues depending on whether its dependencies are satisfied or not (see discussion about tracking dependencies).</p>
+<p>Once a task is ready to be run, it is then worked on my a thread in the thread pool, which is created once during construction of the TaskSystem (the size of the thread pool is the only required input).
+The threads are sleeping to avoid overhead but are woken up via condition variables when new work arrives, and they do the work. Finally, when work is done, they notify the main thread via a condition variable that all work is done.</p>
+<h3 id="thread-management">Thread management</h3>
+<p>As suggested by part A, step 2, the implementation uses a persistent thread pool created once during construction. Worker threads are spawned in the constructor and continuously execute a <code>spinning()</code> function (other than for part 1 of part a), sleeping when no work is available and waking via condition variables when new tasks arrive (for part a part 3 and for part b).</p>
+<p>We also need a mechanism do know when all the work is done.</p>
+<p>In part A, After the thread have done their assigned work (see next section for discussion of task assignment), we increment a shared counter named <code>jobs_complete</code> using an atomic (to avoid race conditions). In this way, each worker thread can accurately tell if all the tasks have been completed, notifying the main thread via a condition variable once all tasks are done.</p>
+<p>In part B, the condition variable is triggered when the queues holding the ready and waiting tasks are empty (see discussion of tracking dependencies), meaning all tasks are done</p>
+<p>When threads are meant to be destroyed, a kill flag is triggered which wakes any sleeping threads and causes them to exit their spinning loops and terminate.</p>
+<h3 id="dynamic-assignment">Dynamic Assignment</h3>
+<p>We use semi/dynamic assignment of jobs to threads, which lets us be flexible in balancing the load in all parts but part a part 1 (where jobs are taken 1 at a time by each thread).</p>
+<p>However for the other parts, we use a batch size, as similar to the ideas presented in lecture. The gist is that it's not worth the overhead of waking up a thread just to do a single tiny task. On the other hand, if we had a thread to a large batch of tasks, the risk is that a pulse of long tasks could cause serious load imbalance. So, we pick a batch size as a compromise.</p>
+<p>We use a batch size of std::max(1, num_total_tasks/num_threads/3) in part A. This batch size aims to split up the work among threads with plenty of batches to pull from to help mitigate load imbalance, while still keeping the overhead of waking up threads low.</p>
+<p>In part B, we use a splicing system. We have a ready queue of batches of work for each task. When a task is moved to the ready queue, it is split up in num_threads batches, where each batch specifies a starting index of a job and the thread which processes it will process each job with the index <code>start_index + k * num_threads</code> for integer k until the job index surpasses the number of jobs in that task. This splicing system allows for load balancing as threads can pick new batches of work from the ready queue, which are generally equivalent in size for the same task. This helps mitigate load imbalance that could occur if some threads pick up long tasks while others pick up short tasks.</p>
+<h3 id="tracking-dependencies">Tracking dependencies</h3>
+<p>To track dependencies in part B, there are a number of data structures set up.</p>
+<p>One is a vector of ints called <code>num_jobs_left</code>. This vector is set up so that if we index into <code>num_jobs_left</code> with the appropriate <code>task_id</code>, we can see how many jobs are left before the task is complete. This value is decremented when jobs are finished, and serves as an indicator of when tasks that depend on this task can be started (i.e. when <code>num_jobs_left[task_id]</code> reaches 0). This is ok to do because we assign task_ids sequentially ourselves, using an atomic to ensure no repeats.</p>
+<p>This vector is useful for deciding what to do when we run a bulk task with <code>runAsyncWithDeps</code>.</p>
+<ul>
+<li>If the <code>deps</code> of this bulk task launch are not met (as indicated by looking at the appropriate entries of <code>num_jobs_left</code>), then we add an appropriate instance of the <code>WaitingTask</code> struct to the <code>waiting_tasks</code> queue. This <code>WaitingTask</code> tracks the dependencies of this bulk task launch, and when the dependencies are met, we can launch the bulk task.</li>
+<li>If the <code>deps</code> of this bulk task launch are met, then we add multiple appropriate instances of the <code>TaskBatch</code> struct to the <code>ready_queue</code>. This <code>TaskBatch</code> represents part of a task that is ready to be executed, already batched and splicing specified, with all task dependencies met.</li>
+</ul>
+<p>When a thread is awake, it first checks the <code>ready_queue</code> for any <code>TaskBatch</code>s or whether the <code>waiting_queue</code> is empty or if there is an active kill flag. If none of these conditions are met, the thread sleeps. A kill flag results in the termination of the thread spinning. If a ready task is not available, the thread simply spins with the anticipation that soon tasks will be complete to enable processing of waiting tasks. If there are tasks in the <code>ready_queue</code>, the thread begins processing some of the jobs in this task, in the splicing manner described previously.</p>
+<h2 id="question-2">Question 2</h2>
+<p>There are four different implementations in part A:</p>
+<ul>
+<li>serial</li>
+<li>parallel and always spawn</li>
+<li>parallel and use a thread pool and spin</li>
+<li>parallel and thread pool and sleep.</li>
+</ul>
+<p>There are certain test cases where serial performs beter than any parallel implementation. This is typical in light tasks with minimal work required because there is an overhead to spawning threads.</p>
+<p>For example, in <code>super super lightweight</code>, on myth, serials runs in around 9 ms, while the best (most sophisticated) parallel implementaion is around 10 ms.</p>
+<p>In contrast, on myth, <code>fibonacci</code> takes around 1 second for serial, and only around 300-500 ms for the parallel implementations.</p>
+<p>Let's compare and contrast these two tasks as way of understanding the benefits of serial implementation vs spawning threads.</p>
+<p><code>fibonacci</code> is implemented recursively and involves computing the 25th element of the fibonacci sequence. As a result, there is a lot of arithmetic to do in either implementation. Moreover, if we spawn threads and do them in parallel, each thread still has a lot of arithmetic to do, making the overhead of spawning threads worth it. That's why on this test, parallel is better than sequential.</p>
+<p><code>super super lightweight</code>, on the other hand, is a task that does no arithmetic at all. It only involves copying data from one array to another. Each operation is so lightweight that the overhead of spawning a thread is often not worth it. However, some amount of tuning matters. For example, on the myth machine, if we spawn with 3 threads, we can actualy get parallel+sleeping to be slightly faster than serial. So there is some balance: doing all of the operation in parallel is less costly than spawning one thread. But, already by the time we are spawning 4 threads, the overhead of spawning is too much and serial is faster.</p>
+<p><code>always spawn</code> is roughly comparable on <code>ping_pong</code> (equal and unequal), <code>recursive_fibonacci</code>, <code>math_operations_in_tight_for_loop_reduction_tree</code>, and <code>mandelbrot_chunked</code>. On the other tasks, thread pooling does better.</p>
+<p>A great case study is look at <code>super_light</code> vs <code>ping_pong_equal</code>. Both of these tasks are identical, except that <code>ping_pong_equal</code> has 2^19 elements in the arrays, while <code>super_light</code> has 2^15. In <code>super_light</code>, the thread pool implementations are much better than always spawn. But in <code>ping_pong_equal</code>, they are roughly comparable. This is because in <code>super_light</code>, each run of the thread is not so heavy, so the overhead of spawning is more significant. In contrast, in <code>ping_pong_equal</code>, each thread has a lot more work to do, so the overhead of spawning is less significant. We see this theme of very heavy compute threads not showing so much of a benefit from thread pooling in the other tests as well, as <code>recursive_fibonacci</code>,<code>math_operations_in_tight_for_loop_reduction_tree</code>, and <code>mandelbrot_chunked</code> all involve heavy computation for each task.</p>
+<h2 id="question-3">Question 3</h2>
+<h3 id="part-a">part a</h3>
+<p>A test we implemented for part a was <code>matMulTest</code>, which multiplied 5 2x2 matrices of the form {{2,2}, {0,2}}.</p>
+<p>The test is meant to check if our implementations can still be correct in the context of matrix multplication, which involves mixing multiple linput variables. Matrix multiplication is also a very important primitive in machine learning.</p>
+<p>I was able to verify correctnes of the solution by checking the output of the test against a hand-calculated result. The result of the test did not cause me to change the implementation, but it did give me more confidence that the implementation was correct.</p>
+<p>It is interesting that the parallel implementations were slower than serial on this test. This is likely because the number and size of the matrices multiplied together were small.</p>
+<h3 id="part-b">part b</h3>
+<p>For part b, to check correctness, we implemented <code>simpleAccumulateTest</code>. It was inspired by the structure of the sleep test, but the sleep test just printed out numbers for a visual inspection. I wanted to see if we could update a pointer asynchronously and get the correct result.</p>
+<p>To do so, I used three tasks (A -&gt; B -&gt; C), where each task raised the current value of a pointer to a power (i.e., this operator is non-associative, unlike addition or multiplication, and so would raise an error if done out of order). Thus, the async implementation needs to be done correctly to give the right result. This test confirms the correctness of the async implementation.</p>
+
+</body>
+</html>
